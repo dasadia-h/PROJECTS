@@ -1,0 +1,17 @@
+<resources>
+
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#7B2FBE</item>
+        <item name="colorPrimaryDark">#5A1F9A</item>
+        <item name="colorAccent">#7B2FBE</item>
+        <item name="android:windowBackground">#000000</item>
+        <item name="navigationViewStyle">@style/DrawerStyle</item>
+    </style>
+
+    <style name="DrawerStyle" parent="Widget.MaterialComponents.NavigationView">
+        <item name="itemTextColor">#FFFFFF</item>
+        <item name="itemIconTint">#7B2FBE</item>
+        <item name="itemBackground">@drawable/nav_item_background</item>
+    </style>
+
+</resources>

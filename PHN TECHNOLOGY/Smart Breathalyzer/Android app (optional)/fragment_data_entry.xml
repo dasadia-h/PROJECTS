@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <EditText
+            android:id="@+id/licenseField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Drivers License No"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="text"
+            android:background="@drawable/field_underline"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="24dp" />
+
+        <EditText
+            android:id="@+id/nameField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Name"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="textPersonName"
+            android:background="@drawable/field_underline"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="24dp" />
+
+        <EditText
+            android:id="@+id/surnameField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Surname"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="textPersonName"
+            android:background="@drawable/field_underline"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="24dp" />
+
+        <EditText
+            android:id="@+id/vehicleField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Vehicle No"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="text"
+            android:background="@drawable/field_underline"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="24dp" />
+
+        <EditText
+            android:id="@+id/emailField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Email"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="textEmailAddress"
+            android:background="@drawable/field_underline"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="24dp" />
+
+        <EditText
+            android:id="@+id/concentrationField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Concentration"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="numberDecimal"
+            android:background="@drawable/field_underline"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="40dp" />
+
+        <Button
+            android:id="@+id/fetchButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="FETCH"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:backgroundTint="#7B2FBE"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/submitButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="SUBMIT"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:backgroundTint="#7B2FBE" />
+
+    </LinearLayout>
+
+</ScrollView>
