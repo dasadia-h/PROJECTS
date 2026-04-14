@@ -1,0 +1,33 @@
+--- Scenario: Light Steady Rain ---
+flood water system ready
+
+--- Scenario: Heavy Downpour (20 min) ---
+flood water system ready
+[   676s] building 1: pump ON
+[   676s] building 2: pump ON
+[   835s] building 3: pump ON
+[   913s] building 1: pump OFF
+[   947s] building 2: pump OFF
+[  1063s] building 3: pump OFF
+[  2063s] building 2: pump ON
+[  2248s] building 1: pump ON
+[  2308s] building 2: pump OFF
+[  2484s] building 1: pump OFF
+[  2735s] building 3: pump ON
+[  2963s] building 3: pump OFF
+
+--- Scenario: Intermittent Storms ---
+flood water system ready
+[  1081s] building 1: pump ON
+[  1081s] building 2: pump ON
+[  1081s] building 3: pump ON
+[  1337s] building 3: pump OFF
+[  1346s] building 1: pump OFF
+[  1356s] building 2: pump OFF
+[  2470s] building 2: pump ON
+[  2681s] building 1: pump ON
+[  2714s] building 2: pump OFF
+[  2917s] building 1: pump OFF
+[  3006s] building 3: pump ON
+[  3234s] building 3: pump OFF
+
