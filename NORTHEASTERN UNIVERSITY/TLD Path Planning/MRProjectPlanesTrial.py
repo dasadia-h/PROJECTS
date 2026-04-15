@@ -294,6 +294,10 @@ def visible_waypoints_3d(obs: Cuboid, ps: np.ndarray,
     nudge each of the 8 corners of the blocking cuboid outward in XY, then
     keep only those the drone can actually reach from ps without clipping anything.
 
+    Uses progressive margin nudging: if the initial margin places the waypoint
+    inside an adjacent obstacle (common in building clusters), try larger margins
+    (2×, 3×, 4×) to push the waypoint clear.
+
     stats: optional dict with keys 'detected' and 'approached' to accumulate counts.
     """
     candidates = []
@@ -305,21 +309,25 @@ def visible_waypoints_3d(obs: Cuboid, ps: np.ndarray,
         horiz = vt[:2] - np.array([obs.cx, obs.cy])
         l = np.linalg.norm(horiz)
         away = horiz / l if l > 1e-9 else np.array([0., 1.])
-        wp = vt.copy()
-        wp[:2] += away * margin
-        # skip degenerate cases
-        if dist3(wp, ps) < 0.3:
+
+        # try progressively larger margins to clear adjacent obstacles
+        wp = None
+        for mult in (1, 2, 3, 4):
+            trial = vt.copy()
+            trial[:2] += away * (margin * mult)
+            if trial[2] < 0:
+                continue
+            if dist3(trial, ps) < 0.3:
+                continue
+            if not any(pt_in_cuboid(trial, o) for o in all_obs):
+                wp = trial
+                break
+
+        if wp is None:
             if stats is not None:
-                stats['unused_pts'].append(wp.copy())
+                stats['unused_pts'].append(vt.copy())
             continue
-        if wp[2] < 0:
-            if stats is not None:
-                stats['unused_pts'].append(wp.copy())
-            continue
-        if any(pt_in_cuboid(wp, o) for o in all_obs):
-            if stats is not None:
-                stats['unused_pts'].append(wp.copy())
-            continue
+
         # only keep if ps->wp is actually clear of every obstacle
         if not any(seg_intersects_cuboid(ps, wp, o) for o in all_obs):
             # reachable — count as approached
@@ -332,20 +340,79 @@ def visible_waypoints_3d(obs: Cuboid, ps: np.ndarray,
                 stats['unused_pts'].append(wp.copy())
     return candidates
 
+def _repair_collisions_3d(path, obstacles, max_iters=8):
+    """Post-process a TLD path: fix any residual collision segments by
+    inserting fly-over waypoints above the tallest obstacle."""
+    if len(obstacles) == 0:
+        return path
+    ceil_z = max(o.z1 for o in obstacles) + 2.0
+    for _ in range(max_iters):
+        fixed = [path[0]]
+        had_collision = False
+        for i in range(len(path) - 1):
+            hit = next((o for o in obstacles
+                        if seg_intersects_cuboid(path[i], path[i+1], o)), None)
+            if hit is not None:
+                had_collision = True
+                # insert two fly-over waypoints: above the start and end of
+                # the colliding segment so the drone ascends, flies over, descends
+                up_start = v3(path[i][0], path[i][1], ceil_z)
+                up_end   = v3(path[i+1][0], path[i+1][1], ceil_z)
+                fixed.append(up_start)
+                fixed.append(up_end)
+            fixed.append(path[i+1])
+        path = fixed
+        if not had_collision:
+            break
+    return path
+
 def tld_3d(ps, pg, obstacles: List[Cuboid], depth=0, max_depth=14,
            stats: dict = None):
     if stats is None:
         stats = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
     if depth > max_depth:
         return [ps, pg], stats
-    blocking = next((o for o in obstacles if seg_intersects_cuboid(ps, pg, o)), None)
-    if blocking is None:
+
+    # find ALL blocking obstacles along ps→pg
+    blockers = [o for o in obstacles if seg_intersects_cuboid(ps, pg, o)]
+    if not blockers:
         return [ps, pg], stats
-    # get only waypoints that are directly reachable from ps
-    candidates = visible_waypoints_3d(blocking, ps, obstacles, margin=0.8, stats=stats)
+
+    # try each blocker until one yields usable corner-based waypoints;
+    # progressive margin nudging inside visible_waypoints_3d handles
+    # the case where the default margin lands inside adjacent buildings
+    candidates = []
+    for blocking in blockers:
+        candidates = visible_waypoints_3d(blocking, ps, obstacles, margin=0.8,
+                                          stats=stats)
+        if candidates:
+            break
+
+    # fly-over fallback: when ALL blockers' corners are unreachable (very
+    # tight cluster), ascend above the tallest obstacle — the recursion
+    # will route from the elevated waypoint back down to pg.
+    # Only at shallow depth to prevent repeated fly-over attempts.
+    if not candidates and depth < 3:
+        max_z = max(o.z1 for o in obstacles) + 1.5
+        above_ps = v3(ps[0], ps[1], max_z)
+        if not any(pt_in_cuboid(above_ps, ob) for ob in obstacles):
+            candidates.append(above_ps)
+            if stats is not None:
+                stats['detected'] += 1
+                stats['approached'] += 1
+                stats['used_pts'].append(above_ps.copy())
+
     if not candidates:
         return [ps, pg], stats
+
     candidates.sort(key=lambda w: dist3(w, ps) + dist3(w, pg))
+    # limit branching at deeper recursion levels to avoid exponential
+    # blowup in tight building clusters: full search at top, greedy deeper
+    if depth >= 3:
+        candidates = candidates[:1]
+    elif depth >= 1:
+        candidates = candidates[:3]
+
     best, best_l = None, math.inf
     for wp in candidates:
         L, _ = tld_3d(ps, wp, obstacles, depth+1, max_depth, stats)
@@ -354,7 +421,15 @@ def tld_3d(ps, pg, obstacles: List[Cuboid], depth=0, max_depth=14,
         l = path_len_3d(combined)
         if l < best_l:
             best_l = l; best = combined
-    return (best if best else [ps, pg]), stats
+
+    result = best if best else [ps, pg]
+
+    # at the top level, guarantee no collisions remain by repairing any
+    # segments the recursive solver could not resolve (e.g. max-depth hit)
+    if depth == 0:
+        result = _repair_collisions_3d(result, obstacles)
+
+    return result, stats
 
 
 # ─── path interpolation helpers for smooth animation ─────────────────────────
