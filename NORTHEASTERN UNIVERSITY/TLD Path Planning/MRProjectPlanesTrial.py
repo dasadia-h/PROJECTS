@@ -818,17 +818,17 @@ def draw_three_views(screen, fonts, path, cuboids, ps, pg, stats=None):
                 pygame.draw.line(popup, col,
                                  (ox+pa[0],oy+pa[1]), (ox+pb[0],oy+pb[1]), 2)
 
-        # start / goal markers
-        for i, p in enumerate(path):
-            dot_col = C["start"] if i==0 else (C["goal"] if i==len(path)-1 else C["waypoint"])
+        # start / goal markers (only endpoints, no intermediate waypoints)
+        for i in (0, len(path)-1):
+            p = path[i]
+            dot_col = C["start"] if i==0 else C["goal"]
             if view_idx == 0:
                 px,py2 = to_top(p[0],p[1])
             elif view_idx == 1:
                 px,py2 = to_sx(p[0],p[2])
             else:
                 px,py2 = to_sy(p[1],p[2])
-            r = 5 if i in (0, len(path)-1) else 3
-            pygame.draw.circle(popup, dot_col, (ox+px, oy+py2), r)
+            pygame.draw.circle(popup, dot_col, (ox+px, oy+py2), 5)
 
     # ── legend ──
     ox_l, oy_l = OX[3]
@@ -841,18 +841,16 @@ def draw_three_views(screen, fonts, path, cuboids, ps, pg, stats=None):
     draw_text(popup, "Start",  (ox_l+18, oy_l+173), f_sm, C["text_dim"])
     pygame.draw.circle(popup, C["goal"],    (ox_l+7, oy_l+193), 5)
     draw_text(popup, "Goal",   (ox_l+18, oy_l+188), f_sm, C["text_dim"])
-    pygame.draw.circle(popup, C["waypoint"],(ox_l+7, oy_l+208), 4)
-    draw_text(popup, "Waypoint",(ox_l+18, oy_l+203), f_sm, C["text_dim"])
-    pygame.draw.circle(popup, C["vtx_used"], (ox_l+7, oy_l+223), 4)
-    draw_text(popup, "Used vertex",  (ox_l+18, oy_l+218), f_sm, C["vtx_used"])
-    pygame.draw.circle(popup, C["vtx_unused"], (ox_l+7, oy_l+238), 3)
-    draw_text(popup, "Unused vertex",(ox_l+18, oy_l+233), f_sm, C["vtx_unused"])
+    pygame.draw.circle(popup, C["vtx_used"], (ox_l+7, oy_l+208), 4)
+    draw_text(popup, "Used vertex",  (ox_l+18, oy_l+203), f_sm, C["vtx_used"])
+    pygame.draw.circle(popup, C["vtx_unused"], (ox_l+7, oy_l+223), 3)
+    draw_text(popup, "Unused vertex",(ox_l+18, oy_l+218), f_sm, C["vtx_unused"])
 
     # ── vertex stats in popup ──
     if stats is not None:
         det  = stats.get('detected', 0)
         appr = stats.get('approached', 0)
-        vs_y = oy_l + 255
+        vs_y = oy_l + 240
         pygame.draw.line(popup, C["border"], (ox_l, vs_y), (ox_l + VW, vs_y), 1)
         draw_text(popup, f"Used {stats.get('approached',0)} / {stats.get('detected',0)} vertices",
                   (ox_l, vs_y + 6), f_sm, C["accent"])
@@ -1168,11 +1166,6 @@ class Sim2D:
                 anim_pts.append(self.world_to_canvas(self.path[i][0], self.path[i][1]))
             if len(anim_pts) > 1:
                 pygame.draw.lines(surf, C["path"], False, anim_pts, 2)
-
-            # orange dots at each intermediate waypoint
-            for i in range(1, len(self.path)-1):
-                px, py = self.world_to_canvas(self.path[i][0], self.path[i][1])
-                pygame.draw.circle(surf, C["waypoint"], (px, py), 4)
 
             # drone icon at current position
             dx, dy = self.world_to_canvas(drone_pos[0], drone_pos[1])
@@ -1538,10 +1531,6 @@ class Sim3D:
                 anim_pts.append(self.world_to_top(self.path[i][0], self.path[i][1]))
             if len(anim_pts) > 1:
                 pygame.draw.lines(top, C["path"], False, anim_pts, 2)
-            for i in range(1, len(self.path)-1):
-                tx, ty = self.world_to_top(self.path[i][0], self.path[i][1])
-                pygame.draw.circle(top, C["waypoint"], (tx, ty), 3)
-
         # drone, start and goal markers
         dx, dy = self.world_to_top(drone_pos[0], drone_pos[1])
         draw_drone_icon(top, dx, dy, C["drone"], 7)
@@ -1670,13 +1659,7 @@ class Sim3D:
                 acc += seg
                 if acc > total_done:
                     next_wp = self.path[i]; break
-            if next_wp is not None:
-                pp = fp_proj(next_wp)
-                if pp and 0 <= pp[0] < FW and 0 <= pp[1] < FH:
-                    wx, wy = int(pp[0]), int(pp[1])
-                    pygame.draw.circle(fp, C["waypoint"], (wx, wy), 7, 2)
-                    pygame.draw.line(fp, (*C["waypoint"], 100), (wx-14, wy), (wx+14, wy), 1)
-                    pygame.draw.line(fp, (*C["waypoint"], 100), (wx, wy-14), (wx, wy+14), 1)
+
 
         # goal marker visible in the fp view
         gp = fp_proj(self.pg)
