@@ -30,6 +30,8 @@ C = {
     "start":      (0,   220, 255),
     "goal":       (255, 80,  50),
     "waypoint":   (255, 170, 0),
+    "vtx_used":   (0,   255, 120),
+    "vtx_unused": (255, 60,  60),
     "grid":       (14,  22,  30),
     "sky_top":    (6,   10,  20),
     "sky_bot":    (10,  20,  30),
@@ -148,6 +150,8 @@ def visible_waypoints_2d(poly: ConvexPoly, ps: np.ndarray,
         e1 = v - prev_v; e2 = v - next_v
         l1 = np.linalg.norm(e1); l2 = np.linalg.norm(e2)
         if l1 < 1e-9 or l2 < 1e-9:
+            if stats is not None:
+                stats['unused_pts'].append(v.copy())
             continue
         bisect = e1 / l1 + e2 / l2
         bl = np.linalg.norm(bisect)
@@ -159,22 +163,30 @@ def visible_waypoints_2d(poly: ConvexPoly, ps: np.ndarray,
         wp = v + bisect * offset
         # skip if essentially at the same spot as ps (prevents self-loop)
         if dist2(wp, ps) < 0.3:
+            if stats is not None:
+                stats['unused_pts'].append(wp.copy())
             continue
         # skip if it landed inside any polygon
         if any(pt_strictly_in(pv, wp) for pv in all_verts):
+            if stats is not None:
+                stats['unused_pts'].append(wp.copy())
             continue
         # only keep if ps->wp is clear of every polygon
         if not any(seg_blocked_by(pv, ps, wp) for pv in all_verts):
             # this vertex is actually reachable — count it as "approached"
             if stats is not None:
                 stats['approached'] += 1
+                stats['used_pts'].append(wp.copy())
             candidates.append(wp)
+        else:
+            if stats is not None:
+                stats['unused_pts'].append(wp.copy())
     return candidates
 
 def tld_2d(ps, pg, polys: List[ConvexPoly], depth=0, max_depth=16,
            stats: dict = None):
     if stats is None:
-        stats = {'detected': 0, 'approached': 0}
+        stats = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
     if depth > max_depth:
         return [ps, pg], stats
     # check whether anything blocks the straight line at all
@@ -297,23 +309,33 @@ def visible_waypoints_3d(obs: Cuboid, ps: np.ndarray,
         wp[:2] += away * margin
         # skip degenerate cases
         if dist3(wp, ps) < 0.3:
+            if stats is not None:
+                stats['unused_pts'].append(wp.copy())
             continue
         if wp[2] < 0:
+            if stats is not None:
+                stats['unused_pts'].append(wp.copy())
             continue
         if any(pt_in_cuboid(wp, o) for o in all_obs):
+            if stats is not None:
+                stats['unused_pts'].append(wp.copy())
             continue
         # only keep if ps->wp is actually clear of every obstacle
         if not any(seg_intersects_cuboid(ps, wp, o) for o in all_obs):
             # reachable — count as approached
             if stats is not None:
                 stats['approached'] += 1
+                stats['used_pts'].append(wp.copy())
             candidates.append(wp)
+        else:
+            if stats is not None:
+                stats['unused_pts'].append(wp.copy())
     return candidates
 
 def tld_3d(ps, pg, obstacles: List[Cuboid], depth=0, max_depth=14,
            stats: dict = None):
     if stats is None:
-        stats = {'detected': 0, 'approached': 0}
+        stats = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
     if depth > max_depth:
         return [ps, pg], stats
     blocking = next((o for o in obstacles if seg_intersects_cuboid(ps, pg, o)), None)
@@ -763,6 +785,25 @@ def draw_three_views(screen, fonts, path, cuboids, ps, pg, stats=None):
                 pygame.draw.rect(popup, col, (ox+cy2-4, oy+cy3-4, 8, 8), 0)
                 pygame.draw.rect(popup, (255,255,255), (ox+cy2-4, oy+cy3-4, 8, 8), 1)
 
+        # ── vertex markers in popup views ─────────────────────────────────────
+        if stats is not None:
+            for pt in stats.get('unused_pts', []):
+                if view_idx == 0:
+                    vx, vy = to_top(pt[0], pt[1])
+                elif view_idx == 1:
+                    vx, vy = to_sx(pt[0], pt[2])
+                else:
+                    vx, vy = to_sy(pt[1], pt[2])
+                pygame.draw.circle(popup, C["vtx_unused"], (ox+vx, oy+vy), 3)
+            for pt in stats.get('used_pts', []):
+                if view_idx == 0:
+                    vx, vy = to_top(pt[0], pt[1])
+                elif view_idx == 1:
+                    vx, vy = to_sx(pt[0], pt[2])
+                else:
+                    vx, vy = to_sy(pt[1], pt[2])
+                pygame.draw.circle(popup, C["vtx_used"], (ox+vx, oy+vy), 4)
+
         # path
         if len(path) > 1:
             for i in range(1, len(path)):
@@ -802,12 +843,16 @@ def draw_three_views(screen, fonts, path, cuboids, ps, pg, stats=None):
     draw_text(popup, "Goal",   (ox_l+18, oy_l+191), f_sm, C["text_dim"])
     pygame.draw.circle(popup, C["waypoint"],(ox_l+7, oy_l+214), 4)
     draw_text(popup, "Waypoint",(ox_l+18, oy_l+209), f_sm, C["text_dim"])
+    pygame.draw.circle(popup, C["vtx_used"], (ox_l+7, oy_l+232), 4)
+    draw_text(popup, "Used vertex",  (ox_l+18, oy_l+227), f_sm, C["vtx_used"])
+    pygame.draw.circle(popup, C["vtx_unused"], (ox_l+7, oy_l+250), 3)
+    draw_text(popup, "Unused vertex",(ox_l+18, oy_l+245), f_sm, C["vtx_unused"])
 
     # ── vertex stats in popup ──
     if stats is not None:
         det  = stats.get('detected', 0)
         appr = stats.get('approached', 0)
-        vs_y = oy_l + 240
+        vs_y = oy_l + 270
         pygame.draw.line(popup, C["border"], (ox_l, vs_y), (ox_l + VW, vs_y), 1)
         draw_text(popup, "VERTEX STATS", (ox_l, vs_y + 6), f_sm, C["text_dim"])
         draw_text(popup, f"Used {appr} / {det} vertices",
@@ -877,7 +922,7 @@ class Sim2D:
         self.log: List[str] = []
         self.drag_start = None   # stores (mouse_x, mouse_y, orig_cx, orig_cy) when dragging
         # vertex stats from last TLD run
-        self.last_stats: dict = {'detected': 0, 'approached': 0}
+        self.last_stats: dict = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
 
         # lay out all the sidebar controls
         sx = 12
@@ -902,7 +947,7 @@ class Sim2D:
         self.path = None
         self.anim_t = 0.0
         self.animating = False
-        self.last_stats = {'detected': 0, 'approached': 0}
+        self.last_stats = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
 
     def world_to_canvas(self, wx, wy):
         cx = self.CANVAS_X + wx * self.SCALE
@@ -914,7 +959,7 @@ class Sim2D:
 
     def run_tld(self):
         t0 = time.time()
-        stats = {'detected': 0, 'approached': 0}
+        stats = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
         self.path, stats = tld_2d(self.PS.copy(), self.PG.copy(), self.polys,
                                   stats=stats)
         dt = (time.time()-t0)*1000
@@ -1058,6 +1103,12 @@ class Sim2D:
                 pct = int(100 * appr / det)
                 draw_text(surf, f"{pct}% utilisation",
                           (12, panel_y + 76), self.f_sm, C["text_dim"])
+            # vertex marker legend
+            leg_y = panel_y + 94
+            pygame.draw.circle(surf, C["vtx_used"], (22, leg_y + 6), 5)
+            draw_text(surf, "Used vertex", (34, leg_y), self.f_sm, C["vtx_used"])
+            pygame.draw.circle(surf, C["vtx_unused"], (22, leg_y + 22), 4)
+            draw_text(surf, "Unused vertex", (34, leg_y + 16), self.f_sm, C["vtx_unused"])
 
         # log output in the sidebar (between stats and action buttons)
         log_y = 500
@@ -1088,6 +1139,17 @@ class Sim2D:
             # show the number of sides in the center
             cx, cy = self.world_to_canvas(poly.cx, poly.cy)
             draw_text(surf, str(poly.sides)+"v", (cx-8, cy-5), self.f_sm, C["text_dim"])
+
+        # ── vertex markers on canvas ──────────────────────────────────────────
+        if self.path is not None:
+            for pt in self.last_stats.get('unused_pts', []):
+                px, py = self.world_to_canvas(pt[0], pt[1])
+                pygame.draw.circle(surf, C["vtx_unused"], (int(px), int(py)), 4)
+                pygame.draw.circle(surf, (0, 0, 0), (int(px), int(py)), 4, 1)
+            for pt in self.last_stats.get('used_pts', []):
+                px, py = self.world_to_canvas(pt[0], pt[1])
+                pygame.draw.circle(surf, C["vtx_used"], (int(px), int(py)), 5)
+                pygame.draw.circle(surf, (0, 0, 0), (int(px), int(py)), 5, 1)
 
         # path drawing: ghost first, then the animated portion on top
         if self.path and len(self.path) > 1:
@@ -1166,7 +1228,7 @@ class Sim3D:
         self._turn_dir_in    = v3(1, 0, 0)
         self._turn_dir_out   = v3(1, 0, 0)
         # vertex stats from last TLD run
-        self.last_stats: dict = {'detected': 0, 'approached': 0}
+        self.last_stats: dict = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
 
         # start and goal are instance variables so elevation sliders can move them
         self.ps = v3(1, 1, 0.5)
@@ -1207,7 +1269,7 @@ class Sim3D:
         self.show_path_views = False
         self._turning        = False
         self._turn_t         = 0.0
-        self.last_stats      = {'detected': 0, 'approached': 0}
+        self.last_stats      = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
         # randomise goal elevation to a clean 0.5m step between 1.0 and 11.5
         new_goal_z = round(random.uniform(1.0, 11.5) / 0.5) * 0.5
         self.sl_goal_z.val = new_goal_z
@@ -1215,7 +1277,7 @@ class Sim3D:
 
     def run_tld(self):
         t0 = time.time()
-        stats = {'detected': 0, 'approached': 0}
+        stats = {'detected': 0, 'approached': 0, 'used_pts': [], 'unused_pts': []}
         self.path, stats = tld_3d(self.ps.copy(), self.pg.copy(), self.cuboids,
                                   stats=stats)
         dt = (time.time()-t0)*1000
@@ -1403,6 +1465,20 @@ class Sim3D:
         for i, msg in enumerate(self.log[-5:]):
             draw_text(surf, f"> {msg}", (12, log_y + 20 + i*15), self.f_sm, C["accent_dim"])
 
+        # vertex marker legend in sidebar (shown when path exists)
+        if self.path is not None:
+            leg_y = 410
+            pygame.draw.line(surf, C["border"], (8, leg_y), (SIDEBAR_W-8, leg_y), 1)
+            draw_text(surf, "VERTEX MARKERS", (12, leg_y + 4), self.f_sm, C["text_dim"])
+            pygame.draw.circle(surf, C["vtx_used"], (22, leg_y + 24), 5)
+            draw_text(surf, "Used vertex", (34, leg_y + 18), self.f_sm, C["vtx_used"])
+            pygame.draw.circle(surf, C["vtx_unused"], (22, leg_y + 40), 4)
+            draw_text(surf, "Unused vertex", (34, leg_y + 34), self.f_sm, C["vtx_unused"])
+            det  = self.last_stats.get('detected', 0)
+            appr = self.last_stats.get('approached', 0)
+            draw_text(surf, f"Used {appr} / {det} vertices",
+                      (12, leg_y + 56), self.f_sm, C["accent"])
+
         # telemetry bar along the bottom
         pygame.draw.rect(surf, C["panel"], (SIDEBAR_W, H-30, W-SIDEBAR_W, 30))
         pygame.draw.line(surf, C["border"], (SIDEBAR_W, H-30), (W, H-30), 1)
@@ -1436,6 +1512,17 @@ class Sim3D:
             # show elevation and height so floating obstacles are obvious
             draw_text(top, f"e{c.elev:.0f}+{c.h:.0f}",
                       (rx0+2, ry0+2), self.f_sm, C["text_dim"])
+
+        # ── vertex markers on top view ─────────────────────────────────────────
+        if self.path is not None:
+            for pt in self.last_stats.get('unused_pts', []):
+                tx, ty = self.world_to_top(pt[0], pt[1])
+                pygame.draw.circle(top, C["vtx_unused"], (int(tx), int(ty)), 3)
+                pygame.draw.circle(top, (0, 0, 0), (int(tx), int(ty)), 3, 1)
+            for pt in self.last_stats.get('used_pts', []):
+                tx, ty = self.world_to_top(pt[0], pt[1])
+                pygame.draw.circle(top, C["vtx_used"], (int(tx), int(ty)), 4)
+                pygame.draw.circle(top, (0, 0, 0), (int(tx), int(ty)), 4, 1)
 
         # path projected onto the ground plane
         if self.path and len(self.path) > 1:
@@ -1556,6 +1643,17 @@ class Sim3D:
         # draw altitude-change planes as squares in the FP view
         if self.disp_planes:
             draw_altitude_planes(fp, self.disp_planes, fp_proj, half_size=3.5)
+
+        # ── vertex markers in FP view ──────────────────────────────────────────
+        if self.path is not None:
+            for pt in self.last_stats.get('unused_pts', []):
+                pp = fp_proj(pt)
+                if pp and 0 <= pp[0] < FW and 0 <= pp[1] < FH:
+                    pygame.draw.circle(fp, C["vtx_unused"], (int(pp[0]), int(pp[1])), 3)
+            for pt in self.last_stats.get('used_pts', []):
+                pp = fp_proj(pt)
+                if pp and 0 <= pp[0] < FW and 0 <= pp[1] < FH:
+                    pygame.draw.circle(fp, C["vtx_used"], (int(pp[0]), int(pp[1])), 4)
 
         # draw the full planned path as a faint line in 3D space
         if self.path and len(self.path) > 1:
