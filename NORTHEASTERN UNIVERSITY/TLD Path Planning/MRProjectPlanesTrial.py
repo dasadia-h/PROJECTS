@@ -839,33 +839,29 @@ def draw_three_views(screen, fonts, path, cuboids, ps, pg, stats=None):
         draw_text(popup, f"Segment {i+1}", (ox_l+20, oy_l+50+i*20), f_sm, C["text_dim"])
     pygame.draw.circle(popup, C["start"],   (ox_l+7, oy_l+178), 5)
     draw_text(popup, "Start",  (ox_l+18, oy_l+173), f_sm, C["text_dim"])
-    pygame.draw.circle(popup, C["goal"],    (ox_l+7, oy_l+196), 5)
-    draw_text(popup, "Goal",   (ox_l+18, oy_l+191), f_sm, C["text_dim"])
-    pygame.draw.circle(popup, C["waypoint"],(ox_l+7, oy_l+214), 4)
-    draw_text(popup, "Waypoint",(ox_l+18, oy_l+209), f_sm, C["text_dim"])
-    pygame.draw.circle(popup, C["vtx_used"], (ox_l+7, oy_l+232), 4)
-    draw_text(popup, "Used vertex",  (ox_l+18, oy_l+227), f_sm, C["vtx_used"])
-    pygame.draw.circle(popup, C["vtx_unused"], (ox_l+7, oy_l+250), 3)
-    draw_text(popup, "Unused vertex",(ox_l+18, oy_l+245), f_sm, C["vtx_unused"])
+    pygame.draw.circle(popup, C["goal"],    (ox_l+7, oy_l+193), 5)
+    draw_text(popup, "Goal",   (ox_l+18, oy_l+188), f_sm, C["text_dim"])
+    pygame.draw.circle(popup, C["waypoint"],(ox_l+7, oy_l+208), 4)
+    draw_text(popup, "Waypoint",(ox_l+18, oy_l+203), f_sm, C["text_dim"])
+    pygame.draw.circle(popup, C["vtx_used"], (ox_l+7, oy_l+223), 4)
+    draw_text(popup, "Used vertex",  (ox_l+18, oy_l+218), f_sm, C["vtx_used"])
+    pygame.draw.circle(popup, C["vtx_unused"], (ox_l+7, oy_l+238), 3)
+    draw_text(popup, "Unused vertex",(ox_l+18, oy_l+233), f_sm, C["vtx_unused"])
 
     # ── vertex stats in popup ──
     if stats is not None:
         det  = stats.get('detected', 0)
         appr = stats.get('approached', 0)
-        vs_y = oy_l + 270
+        vs_y = oy_l + 255
         pygame.draw.line(popup, C["border"], (ox_l, vs_y), (ox_l + VW, vs_y), 1)
-        draw_text(popup, "VERTEX STATS", (ox_l, vs_y + 6), f_sm, C["text_dim"])
-        draw_text(popup, f"Used {appr} / {det} vertices",
-                  (ox_l, vs_y + 24), f_md, C["accent"])
+        draw_text(popup, f"Used {stats.get('approached',0)} / {stats.get('detected',0)} vertices",
+                  (ox_l, vs_y + 6), f_sm, C["accent"])
         if det > 0:
             bar_w = VW - 8
-            bar_rect = pygame.Rect(ox_l, vs_y + 44, bar_w, 8)
+            bar_rect = pygame.Rect(ox_l, vs_y + 22, bar_w, 6)
             fill_w = int(bar_w * appr / det)
             draw_rect_fill(popup, bar_rect, C["border"], radius=3)
-            draw_rect_fill(popup, pygame.Rect(ox_l, vs_y + 44, fill_w, 8), C["accent"], radius=3)
-            pct = int(100 * appr / det)
-            draw_text(popup, f"{pct}% utilisation",
-                      (ox_l, vs_y + 58), f_sm, C["text_dim"])
+            draw_rect_fill(popup, pygame.Rect(ox_l, vs_y + 22, fill_w, 6), C["accent"], radius=3)
 
     draw_text(popup, "Press any key or click to close",
               (ox_l, PH - 36), f_sm, C["accent"])
